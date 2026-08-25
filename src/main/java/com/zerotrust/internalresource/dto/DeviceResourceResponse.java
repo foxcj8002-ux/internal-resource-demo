@@ -1,0 +1,3 @@
+package com.zerotrust.internalresource.dto;
+import com.zerotrust.internalresource.entity.DeviceResourceEntity;import java.time.Instant;
+public record DeviceResourceResponse(Long id,String resourceId,String deviceName,String ipAddress,String deviceType,String location,String department,String securityLevel,String status,Instant lastHeartbeat,Instant createdAt,Instant updatedAt){public static DeviceResourceResponse from(DeviceResourceEntity e){return new DeviceResourceResponse(e.getId(),e.getResourceId(),e.getDeviceName(),e.getIpAddress(),e.getDeviceType(),e.getLocation(),e.getDepartment(),e.getSecurityLevel(),e.getStatus(),e.getLastHeartbeat(),e.getCreatedAt(),e.getUpdatedAt());}}

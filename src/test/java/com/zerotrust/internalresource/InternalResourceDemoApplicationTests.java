@@ -1,1 +1,134 @@
-package com.zerotrust.internalresource; import org.junit.jupiter.api.Test; import org.springframework.boot.test.context.SpringBootTest; import static org.assertj.core.api.Assertions.assertThat; @SpringBootTest class InternalResourceDemoApplicationTests { @Test void contextLoads(){assertThat(true).isTrue();} }
+package com.zerotrust.internalresource;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.zerotrust.internalresource.repository.AccessLogRepository;
+import com.zerotrust.internalresource.repository.DeviceResourceRepository;
+import com.zerotrust.internalresource.repository.FileResourceRepository;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.http.MediaType;
+import org.springframework.test.web.servlet.MockMvc;
+
+import java.util.Map;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
+
+@SpringBootTest
+@AutoConfigureMockMvc
+class InternalResourceDemoApplicationTests {
+    @Autowired MockMvc mockMvc;
+    @Autowired ObjectMapper objectMapper;
+    @Autowired FileResourceRepository fileRepository;
+    @Autowired DeviceResourceRepository deviceRepository;
+    @Autowired AccessLogRepository accessLogRepository;
+
+    @Test
+    void initializedResourcesAreAvailable() throws Exception {
+        assertThat(fileRepository.count()).isGreaterThanOrEqualTo(5);
+        assertThat(deviceRepository.count()).isGreaterThanOrEqualTo(5);
+        mockMvc.perform(get("/api/files")).andExpect(status().isOk()).andExpect(jsonPath("$.data.length()").value(5));
+        mockMvc.perform(get("/api/devices")).andExpect(status().isOk()).andExpect(jsonPath("$.data.length()").value(5));
+    }
+
+    @Test
+    void fileCrudUsesServerControlledResourceId() throws Exception {
+        String createBody = json(Map.of("name", "Created file", "description", "description", "category", "report",
+                "owner", "tester", "department", "security", "classificationLevel", "INTERNAL", "status", "ACTIVE",
+                "resourceId", "client-forged-resource"));
+        String created = mockMvc.perform(post("/api/files").contentType(MediaType.APPLICATION_JSON).content(createBody))
+                .andExpect(status().isCreated()).andExpect(jsonPath("$.data.resourceId").value("internal-files"))
+                .andReturn().getResponse().getContentAsString();
+        long id = objectMapper.readTree(created).path("data").path("id").asLong();
+        mockMvc.perform(get("/api/files/{id}", id)).andExpect(status().isOk()).andExpect(jsonPath("$.data.name").value("Created file"));
+        String updateBody = json(Map.of("name", "Updated file", "description", "updated", "category", "configuration",
+                "owner", "tester", "department", "operations", "classificationLevel", "CONFIDENTIAL", "status", "ACTIVE"));
+        mockMvc.perform(put("/api/files/{id}", id).contentType(MediaType.APPLICATION_JSON).content(updateBody))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.data.name").value("Updated file"))
+                .andExpect(jsonPath("$.data.resourceId").value("internal-files"));
+        mockMvc.perform(delete("/api/files/{id}", id)).andExpect(status().isOk());
+        mockMvc.perform(get("/api/files/{id}", id)).andExpect(status().isNotFound());
+    }
+
+    @Test
+    void deviceCrudUsesServerControlledResourceId() throws Exception {
+        String body = json(Map.of("deviceName", "Created device", "ipAddress", "192.168.20.10", "deviceType", "simulator",
+                "location", "lab", "department", "operations", "securityLevel", "HIGH", "status", "ONLINE"));
+        String created = mockMvc.perform(post("/api/devices").contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isCreated()).andExpect(jsonPath("$.data.resourceId").value("internal-devices"))
+                .andReturn().getResponse().getContentAsString();
+        long id = objectMapper.readTree(created).path("data").path("id").asLong();
+        mockMvc.perform(get("/api/devices/{id}", id)).andExpect(status().isOk());
+        mockMvc.perform(put("/api/devices/{id}", id).contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.data.resourceId").value("internal-devices"));
+        mockMvc.perform(delete("/api/devices/{id}", id)).andExpect(status().isOk());
+        mockMvc.perform(get("/api/devices/{id}", id)).andExpect(status().isNotFound());
+    }
+
+    @Test
+    void missingResourceReturns404WithTraceId() throws Exception {
+        mockMvc.perform(get("/api/files/999999").header("X-Trace-Id", "trace-not-found"))
+                .andExpect(status().isNotFound()).andExpect(header().string("X-Trace-Id", "trace-not-found"))
+                .andExpect(jsonPath("$.traceId").value("trace-not-found"));
+    }
+
+    @Test
+    void invalidRequestReturns400() throws Exception {
+        mockMvc.perform(post("/api/files").contentType(MediaType.APPLICATION_JSON).content("{}"))
+                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.error").value("INVALID_ARGUMENT"))
+                .andExpect(jsonPath("$.traceId").isNotEmpty());
+    }
+
+    @Test
+    void traceIdIsGeneratedAndReturnedInJson() throws Exception {
+        mockMvc.perform(get("/api/test-resources/read"))
+                .andExpect(status().isOk()).andExpect(header().exists("X-Trace-Id"))
+                .andExpect(jsonPath("$.traceId").isNotEmpty()).andExpect(jsonPath("$.data.traceId").isNotEmpty());
+    }
+
+    @Test
+    void existingTraceIdIsPassedThrough() throws Exception {
+        mockMvc.perform(get("/api/test-resources/read").header("X-Trace-Id", "trace-passthrough"))
+                .andExpect(status().isOk()).andExpect(header().string("X-Trace-Id", "trace-passthrough"))
+                .andExpect(jsonPath("$.traceId").value("trace-passthrough"))
+                .andExpect(jsonPath("$.data.traceId").value("trace-passthrough"));
+    }
+
+    @Test
+    void trustedRemoteIpAndGatewayHeaderAreBothRequired() throws Exception {
+        mockMvc.perform(get("/api/test-resources/read").with(request -> { request.setRemoteAddr("127.0.0.1"); return request; })
+                        .header("X-ZT-Gateway", "zero-trust-rgw"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.data.gatewayAccess").value(true));
+        mockMvc.perform(get("/api/test-resources/read").with(request -> { request.setRemoteAddr("10.10.10.10"); return request; })
+                        .header("X-ZT-Gateway", "zero-trust-rgw").header("X-Forwarded-For", "127.0.0.1"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.data.gatewayAccess").value(false));
+        mockMvc.perform(get("/api/test-resources/read").with(request -> { request.setRemoteAddr("127.0.0.1"); return request; }))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.data.gatewayAccess").value(false));
+    }
+
+    @Test
+    void allTestResourceActionsUseActualHttpMethods() throws Exception {
+        mockMvc.perform(post("/api/test-resources/create")).andExpect(status().isOk()).andExpect(jsonPath("$.data.resourceId").value("test-resource-create")).andExpect(jsonPath("$.data.action").value("POST"));
+        mockMvc.perform(put("/api/test-resources/update/1")).andExpect(status().isOk()).andExpect(jsonPath("$.data.resourceId").value("test-resource-update")).andExpect(jsonPath("$.data.action").value("PUT"));
+        mockMvc.perform(delete("/api/test-resources/delete/1")).andExpect(status().isOk()).andExpect(jsonPath("$.data.resourceId").value("test-resource-delete")).andExpect(jsonPath("$.data.action").value("DELETE"));
+    }
+
+    @Test
+    void accessLogProvesRequestReachedResourceWithoutStoringAuthorization() throws Exception {
+        long before = accessLogRepository.count();
+        mockMvc.perform(get("/api/test-resources/read").header("X-Trace-Id", "audit-trace")
+                        .header("Authorization", "Bearer secret-token").header("X-Session-Id", "session-secret"))
+                .andExpect(status().isOk());
+        assertThat(accessLogRepository.count()).isEqualTo(before + 1);
+        var log = accessLogRepository.findAll().stream().filter(item -> "audit-trace".equals(item.getTraceId())).findFirst().orElseThrow();
+        assertThat(log.isAuthorizationPresent()).isTrue();
+        assertThat(log.isSessionIdPresent()).isTrue();
+        assertThat(log.getResourceId()).isEqualTo("test-resource-read");
+        assertThat(log.getHttpMethod()).isEqualTo("GET");
+    }
+
+    private String json(Object value) throws Exception { return objectMapper.writeValueAsString(value); }
+}

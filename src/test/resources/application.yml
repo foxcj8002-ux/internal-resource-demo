@@ -1,9 +1,18 @@
 spring:
+  application:
+    name: internal-resource-demo
   datasource:
     url: jdbc:h2:mem:internalresourcedemo-test;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
   jpa:
     hibernate:
       ddl-auto: create-drop
+  main:
+    allow-bean-definition-overriding: false
+application:
+  version: 0.1.0-SNAPSHOT
 security:
   direct-access-enabled: true
+  audit-enabled: true
+  gateway-header-name: X-ZT-Gateway
+  gateway-header-value: zero-trust-rgw
   trusted-gateway-ips: 127.0.0.1

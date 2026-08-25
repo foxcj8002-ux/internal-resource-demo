@@ -1,0 +1,3 @@
+package com.zerotrust.internalresource.dto;
+import com.zerotrust.internalresource.entity.FileResourceEntity;import java.time.Instant;
+public record FileResourceResponse(Long id,String resourceId,String name,String description,String category,String owner,String department,String classificationLevel,String status,Instant createdAt,Instant updatedAt){public static FileResourceResponse from(FileResourceEntity e){return new FileResourceResponse(e.getId(),e.getResourceId(),e.getName(),e.getDescription(),e.getCategory(),e.getOwner(),e.getDepartment(),e.getClassificationLevel(),e.getStatus(),e.getCreatedAt(),e.getUpdatedAt());}}
