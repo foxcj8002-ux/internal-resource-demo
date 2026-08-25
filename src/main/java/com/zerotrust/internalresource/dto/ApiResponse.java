@@ -1,0 +1,1 @@
+package com.zerotrust.internalresource.dto; public record ApiResponse<T>(boolean success,T data,String message,String traceId){ public static <T> ApiResponse<T> success(T data,String message,String traceId){return new ApiResponse<>(true,data,message,traceId);} }

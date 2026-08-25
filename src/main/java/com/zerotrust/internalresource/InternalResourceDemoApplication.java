@@ -1,0 +1,1 @@
+package com.zerotrust.internalresource; import org.springframework.boot.SpringApplication; import org.springframework.boot.autoconfigure.SpringBootApplication; @SpringBootApplication public class InternalResourceDemoApplication { public static void main(String[] args) { SpringApplication.run(InternalResourceDemoApplication.class, args); } }

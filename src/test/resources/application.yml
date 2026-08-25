@@ -1,0 +1,9 @@
+spring:
+  datasource:
+    url: jdbc:h2:mem:internalresourcedemo-test;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+security:
+  direct-access-enabled: true
+  trusted-gateway-ips: 127.0.0.1

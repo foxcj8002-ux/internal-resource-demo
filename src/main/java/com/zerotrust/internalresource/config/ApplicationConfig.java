@@ -1,0 +1,1 @@
+package com.zerotrust.internalresource.config; import org.springframework.boot.context.properties.EnableConfigurationProperties; import org.springframework.context.annotation.Configuration; @Configuration @EnableConfigurationProperties(ResourceSecurityProperties.class) public class ApplicationConfig { }

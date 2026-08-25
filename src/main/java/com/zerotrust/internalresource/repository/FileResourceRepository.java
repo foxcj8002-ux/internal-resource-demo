@@ -1,0 +1,1 @@
+package com.zerotrust.internalresource.repository; import com.zerotrust.internalresource.entity.FileResourceEntity; import org.springframework.data.jpa.repository.JpaRepository; public interface FileResourceRepository extends JpaRepository<FileResourceEntity,Long>{}

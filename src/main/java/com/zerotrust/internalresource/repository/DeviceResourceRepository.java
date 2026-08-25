@@ -1,0 +1,1 @@
+package com.zerotrust.internalresource.repository; import com.zerotrust.internalresource.entity.DeviceResourceEntity; import org.springframework.data.jpa.repository.JpaRepository; public interface DeviceResourceRepository extends JpaRepository<DeviceResourceEntity,Long>{}
