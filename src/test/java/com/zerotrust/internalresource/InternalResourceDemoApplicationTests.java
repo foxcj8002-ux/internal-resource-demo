@@ -4,6 +4,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.zerotrust.internalresource.repository.AccessLogRepository;
 import com.zerotrust.internalresource.repository.DeviceResourceRepository;
 import com.zerotrust.internalresource.repository.FileResourceRepository;
+import com.zerotrust.internalresource.config.ResourceSecurityProperties;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -25,6 +27,12 @@ class InternalResourceDemoApplicationTests {
     @Autowired FileResourceRepository fileRepository;
     @Autowired DeviceResourceRepository deviceRepository;
     @Autowired AccessLogRepository accessLogRepository;
+    @Autowired ResourceSecurityProperties securityProperties;
+
+    @AfterEach
+    void resetSecurityConfiguration() {
+        securityProperties.setDirectAccessEnabled(true);
+    }
 
     @Test
     void initializedResourcesAreAvailable() throws Exception {
@@ -130,5 +138,78 @@ class InternalResourceDemoApplicationTests {
         assertThat(log.getHttpMethod()).isEqualTo("GET");
     }
 
+    @Test
+    void accessLogQueryAndSingleQueryReturnSafeAuditFields() throws Exception {
+        String traceId = "access-log-query-trace";
+        mockMvc.perform(post("/api/access-logs/test").header("X-Trace-Id", traceId)
+                        .header("Authorization", "Bearer should-not-be-stored")
+                        .header("X-Session-Id", "session-should-not-be-stored"))
+                .andExpect(status().isOk());
+        var log = accessLogRepository.findAll().stream().filter(item -> traceId.equals(item.getTraceId())).findFirst().orElseThrow();
+        mockMvc.perform(get("/api/access-logs").header("X-Trace-Id", "query-trace"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.traceId").value("query-trace"))
+                .andExpect(jsonPath("$.data[?(@.id == " + log.getId() + ")].traceId").value("access-log-query-trace"));
+        mockMvc.perform(get("/api/access-logs/{id}", log.getId()))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.data.id").value(log.getId().intValue()))
+                .andExpect(jsonPath("$.data.authorizationPresent").value(true))
+                .andExpect(jsonPath("$.data.sessionIdPresent").value(true))
+                .andExpect(jsonPath("$.data.authorization").doesNotExist())
+                .andExpect(jsonPath("$.data.sessionId").doesNotExist());
+    }
+
+    @Test
+    void directAccessEnabledAllowsDirectResourceRequest() throws Exception {
+        securityProperties.setDirectAccessEnabled(true);
+        mockMvc.perform(get("/api/test-resources/read"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.data.gatewayAccess").value(false));
+    }
+
+    @Test
+    void directAccessDisabledRejectsBeforeBusinessLogicAndKeepsTrace() throws Exception {
+        securityProperties.setDirectAccessEnabled(false);
+        long filesBefore = fileRepository.count();
+        String body = json(Map.of("name", "must not create", "description", "description", "category", "report",
+                "owner", "tester", "department", "security", "classificationLevel", "INTERNAL", "status", "ACTIVE"));
+        mockMvc.perform(post("/api/files").header("X-Trace-Id", "direct-disabled-trace")
+                        .contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isForbidden()).andExpect(header().string("X-Trace-Id", "direct-disabled-trace"))
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.error").value("DIRECT_ACCESS_DISABLED"))
+                .andExpect(jsonPath("$.traceId").value("direct-disabled-trace"));
+        assertThat(fileRepository.count()).isEqualTo(filesBefore);
+        securityProperties.setDirectAccessEnabled(true);
+        var log = accessLogRepository.findAll().stream().filter(item -> "direct-disabled-trace".equals(item.getTraceId())).findFirst().orElseThrow();
+        assertThat(log.getResult()).isEqualTo("DIRECT_ACCESS_DISABLED");
+    }
+
+    @Test
+    void directAccessDisabledAllowsTrustedGatewayRequest() throws Exception {
+        securityProperties.setDirectAccessEnabled(false);
+        mockMvc.perform(get("/api/test-resources/read").with(request -> { request.setRemoteAddr("127.0.0.1"); return request; })
+                        .header("X-ZT-Gateway", "zero-trust-rgw"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.data.gatewayAccess").value(true));
+    }
+
+    @Test
+    void directAccessDisabledRejectsUntrustedGatewayHeaderAndForwardedForCannotForgeIt() throws Exception {
+        securityProperties.setDirectAccessEnabled(false);
+        mockMvc.perform(get("/api/test-resources/read").with(request -> { request.setRemoteAddr("10.10.10.10"); return request; })
+                        .header("X-ZT-Gateway", "zero-trust-rgw").header("X-Forwarded-For", "127.0.0.1"))
+                .andExpect(status().isForbidden()).andExpect(jsonPath("$.error").value("DIRECT_ACCESS_DISABLED"));
+    }
+
+    @Test
+    void authorizationAndSessionValuesAreNotPersisted() throws Exception {
+        String traceId = "sensitive-values-trace";
+        mockMvc.perform(get("/api/test-resources/read").header("X-Trace-Id", traceId)
+                        .header("Authorization", "Bearer top-secret-jwt")
+                        .header("X-Session-Id", "top-secret-session"))
+                .andExpect(status().isOk());
+        var log = accessLogRepository.findAll().stream().filter(item -> traceId.equals(item.getTraceId())).findFirst().orElseThrow();
+        assertThat(log.isAuthorizationPresent()).isTrue();
+        assertThat(log.isSessionIdPresent()).isTrue();
+        String serialized = objectMapper.writeValueAsString(log);
+        assertThat(serialized).doesNotContain("top-secret-jwt").doesNotContain("top-secret-session");
+    }
     private String json(Object value) throws Exception { return objectMapper.writeValueAsString(value); }
 }
