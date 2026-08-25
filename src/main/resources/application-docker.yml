@@ -1,0 +1,26 @@
+spring:
+  application:
+    name: internal-resource-demo
+  datasource:
+    url: ${DATABASE_URL:jdbc:h2:file:/app/data/internalresourcedemo;DB_CLOSE_ON_EXIT=FALSE}
+    username: ${DATABASE_USERNAME:sa}
+    password: ${DATABASE_PASSWORD:}
+  jpa:
+    hibernate:
+      ddl-auto: update
+    open-in-view: false
+server:
+  port: ${SERVER_PORT:8080}
+application:
+  version: ${APPLICATION_VERSION:0.1.0-SNAPSHOT}
+security:
+  direct-access-enabled: ${DIRECT_ACCESS_ENABLED:true}
+  audit-enabled: ${AUDIT_ENABLED:true}
+  gateway-header-name: ${GATEWAY_HEADER_NAME:X-ZT-Gateway}
+  gateway-header-value: ${GATEWAY_HEADER_VALUE:zero-trust-rgw}
+  trusted-gateway-ips: ${TRUSTED_GATEWAY_IPS:127.0.0.1}
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info

@@ -1,0 +1,11 @@
+.git
+.gitignore
+target
+.idea
+.vscode
+*.iml
+*.log
+.env
+data
+*.mv.db
+*.trace.db
