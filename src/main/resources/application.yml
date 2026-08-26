@@ -18,11 +18,14 @@ application:
 security:
   direct-access-enabled: ${DIRECT_ACCESS_ENABLED:true}
   audit-enabled: ${AUDIT_ENABLED:true}
-  gateway-header-name: ${GATEWAY_HEADER_NAME:X-ZT-Gateway}
-  gateway-header-value: ${GATEWAY_HEADER_VALUE:zero-trust-rgw}
-  trusted-gateway-ips: ${TRUSTED_GATEWAY_IPS:127.0.0.1}
+  gateway:
+    trust-mode: ${GATEWAY_TRUST_MODE:DOCKER_HOST_NAT}
+    header-name: ${GATEWAY_HEADER_NAME:X-ZT-Gateway}
+    header-value: ${GATEWAY_HEADER_VALUE:zero-trust-rgw}
+    trusted-upstream-observed-addresses: ${TRUSTED_UPSTREAM_OBSERVED_ADDRESSES:127.0.0.1}
 management:
   endpoints:
     web:
       exposure:
         include: health,info
+

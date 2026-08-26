@@ -17,6 +17,9 @@ class DockerConfigurationTests {
     @Test
     void dockerProfileUsesConfigurableSecurityDefaults() {
         assertThat(securityProperties.isAuditEnabled()).isTrue();
-        assertThat(securityProperties.getTrustedGatewayIps()).contains("127.0.0.1");
+        assertThat(securityProperties.getGateway().getTrustMode()).isEqualTo("DOCKER_HOST_NAT");
+        assertThat(securityProperties.getGateway().getTrustedUpstreamObservedAddresses()).contains("172.18.0.1");
     }
 }
+
+

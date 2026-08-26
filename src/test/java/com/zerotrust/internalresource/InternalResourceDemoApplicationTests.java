@@ -13,6 +13,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
+import java.util.List;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -32,6 +33,10 @@ class InternalResourceDemoApplicationTests {
     @AfterEach
     void resetSecurityConfiguration() {
         securityProperties.setDirectAccessEnabled(true);
+        securityProperties.getGateway().setTrustMode("DOCKER_HOST_NAT");
+        securityProperties.getGateway().setHeaderName("X-ZT-Gateway");
+        securityProperties.getGateway().setHeaderValue("zero-trust-rgw");
+        securityProperties.getGateway().setTrustedUpstreamObservedAddresses(List.of("127.0.0.1"));
     }
 
     @Test
@@ -117,6 +122,21 @@ class InternalResourceDemoApplicationTests {
                 .andExpect(status().isOk()).andExpect(jsonPath("$.data.gatewayAccess").value(false));
     }
 
+    @Test
+    void dockerHostNatUsesObservedAddressAndNeverForwardedFor() throws Exception {
+        securityProperties.getGateway().setTrustMode("DOCKER_HOST_NAT");
+        securityProperties.getGateway().setTrustedUpstreamObservedAddresses(java.util.List.of("172.18.0.1"));
+        mockMvc.perform(get("/api/test-resources/read").with(request -> { request.setRemoteAddr("172.18.0.1"); return request; })
+                        .header("X-ZT-Gateway", "zero-trust-rgw").header("X-Forwarded-For", "192.168.0.111"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.data.gatewayAccess").value(true));
+        mockMvc.perform(get("/api/test-resources/read").with(request -> { request.setRemoteAddr("10.0.0.20"); return request; })
+                        .header("X-ZT-Gateway", "zero-trust-rgw").header("X-Forwarded-For", "172.18.0.1"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.data.gatewayAccess").value(false));
+        var log = accessLogRepository.findAll().stream().filter(item -> "172.18.0.1".equals(item.getActualRemoteAddr())).findFirst().orElseThrow();
+        assertThat(log.getActualRemoteAddr()).isEqualTo("172.18.0.1");
+        assertThat(log.getForwardedFor()).isEqualTo("192.168.0.111");
+        assertThat(log.isGatewayAccess()).isTrue();
+    }
     @Test
     void allTestResourceActionsUseActualHttpMethods() throws Exception {
         mockMvc.perform(post("/api/test-resources/create")).andExpect(status().isOk()).andExpect(jsonPath("$.data.resourceId").value("test-resource-create")).andExpect(jsonPath("$.data.action").value("POST"));
@@ -213,3 +233,4 @@ class InternalResourceDemoApplicationTests {
     }
     private String json(Object value) throws Exception { return objectMapper.writeValueAsString(value); }
 }
+

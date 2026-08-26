@@ -13,7 +13,11 @@ mvn test
 mvn spring-boot:run
 ```
 
-默认监听 `8080`。`TRUSTED_GATEWAY_IPS` 只匹配资源服务器实际看到的 `request.getRemoteAddr()`；`X-Forwarded-For` 仅作为审计信息。
+默认监听 `8080`。`TRUSTED_UPSTREAM_OBSERVED_ADDRESSES` 只匹配资源服务器实际看到的 `request.getRemoteAddr()`；`X-Forwarded-For` 仅作为审计信息。
+
+真实 Windows Docker NAT 部署中，RGW 192.168.0.111 访问资源服务器 192.168.0.95:8080 后，资源容器可能看到 actualRemoteAddr=172.18.0.1。172.18.0.1 仅表示 Docker Gateway 的传输观察地址，不是 RGW IP；RGW 原始地址 192.168.0.111 应由 Windows 防火墙、VPN 和路由边界控制，不能通过 X-Forwarded-For 建立信任。
+
+Gateway Access 第一版使用 GATEWAY_TRUST_MODE=DOCKER_HOST_NAT，并要求 actualRemoteAddr 位于 TRUSTED_UPSTREAM_OBSERVED_ADDRESSES 且 X-ZT-Gateway 正确。
 
 ## Docker 运行
 
@@ -31,7 +35,7 @@ SERVER_PORT
 HOST_PORT
 SPRING_PROFILES_ACTIVE
 DIRECT_ACCESS_ENABLED
-TRUSTED_GATEWAY_IPS
+TRUSTED_UPSTREAM_OBSERVED_ADDRESSES
 AUDIT_ENABLED
 APPLICATION_VERSION
 DATABASE_URL
@@ -86,7 +90,7 @@ Docker Desktop 主机
 internal-resource-demo 容器
 ```
 
-本机 Docker 测试中，资源服务看到的 `clientIp` 可能是 Docker 网桥地址，例如 `172.18.0.1`。该地址只代表本机 Docker 网络，**禁止直接作为生产 `TRUSTED_GATEWAY_IPS`**。
+本机 Docker 测试中，资源服务看到的 `actualRemoteAddr` 可能是 Docker 网桥地址，例如 `172.18.0.1`。该地址只代表本机 Docker 网络，**禁止直接作为生产 `TRUSTED_UPSTREAM_OBSERVED_ADDRESSES`**。
 
 本机 Docker 的 `172.18.0.1`、Compose 网络名和容器地址不代表真实 RGW 服务器地址，也不能证明真实内网链路已经打通。
 
@@ -235,14 +239,14 @@ Invoke-RestMethod http://192.168.x.x:8080/api/system/network-info `
 查看响应中的：
 
 ```text
-clientIp
+actualRemoteAddr
 forwardedFor
 forwardedProto
 traceId
 gatewayAccess
 ```
 
-`clientIp` 是资源系统通过 `request.getRemoteAddr()` 实际看到的 TCP 对端地址。将这个真实 `clientIp` 作为候选值配置到资源服务器的 `TRUSTED_GATEWAY_IPS`，而不是使用：
+`actualRemoteAddr` 是资源系统通过 `request.getRemoteAddr()` 实际看到的 TCP 对端地址。将这个真实 `actualRemoteAddr` 作为候选值配置到资源服务器的 `TRUSTED_UPSTREAM_OBSERVED_ADDRESSES`，而不是使用：
 
 - Docker 本机测试得到的 `172.18.0.1`
 - 客户端 IP
@@ -250,7 +254,7 @@ gatewayAccess
 - 文档占位符 `192.168.x.x`
 - 未经验证的公网地址
 
-如果存在 VPN、NAT 或反向代理，必须以资源服务器实际看到的 `clientIp` 为准，并确认该地址在网络拓扑中确实属于 RGW 或可信中间层。
+如果存在 VPN、NAT 或反向代理，必须以资源服务器实际看到的 `actualRemoteAddr` 为准，并确认该地址在网络拓扑中确实属于 RGW 或可信中间层。
 
 ### 5. 配置真实可信来源
 
@@ -258,14 +262,17 @@ gatewayAccess
 
 ```text
 DIRECT_ACCESS_ENABLED=true
-TRUSTED_GATEWAY_IPS=127.0.0.1
+GATEWAY_TRUST_MODE=DOCKER_HOST_NAT
+GATEWAY_HEADER_NAME=X-ZT-Gateway
+GATEWAY_HEADER_VALUE=zero-trust-rgw
+TRUSTED_UPSTREAM_OBSERVED_ADDRESSES=172.18.0.1
 ```
 
 真实内网演示或生产环境建议：
 
 ```text
 DIRECT_ACCESS_ENABLED=false
-TRUSTED_GATEWAY_IPS=<network-info 返回的真实 clientIp>
+TRUSTED_UPSTREAM_OBSERVED_ADDRESSES=<network-info 返回的真实 actualRemoteAddr>
 ```
 
 多个可信来源使用项目配置支持的列表格式；不要把 `X-Forwarded-For` 当作可信来源判断依据。修改后重启容器或应用，并重新执行 `/api/system/network-info` 验证。
@@ -405,7 +412,7 @@ curl -i --connect-timeout 10 http://<资源服务器真实内网IP>:8080/actuato
 - [ ] RGW 转发时保留 `X-Trace-Id`，资源服务响应和 AccessLog 能关联同一 TraceId。
 - [ ] RGW 转发时按约定透传 `X-Session-Id`，资源服务只记录 `sessionIdPresent`，不返回完整 SessionId。
 - [ ] RGW 转发 `X-ZT-Gateway: zero-trust-rgw`。
-- [ ] 资源服务根据实际 `clientIp` 与 `X-ZT-Gateway` 双条件正确识别 `gatewayAccess`。
+- [ ] 资源服务根据实际 `actualRemoteAddr` 与 `X-ZT-Gateway` 双条件正确识别 `gatewayAccess`。
 - [ ] `X-Forwarded-For` 仅作为审计信息，不参与可信来源判断。
 - [ ] Authorization 只记录 `authorizationPresent`，不记录完整 JWT。
 - [ ] RGW Allow 请求到达资源服务并产生 AccessLog。
@@ -447,3 +454,4 @@ zero-trust-rgw 负责执行 JWT/Session/Resource/Action 校验并转发
 ```
 
 本项目不修改 Policy、RGW 或其他 `zerotrustbackend` 模块。
+

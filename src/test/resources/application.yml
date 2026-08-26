@@ -6,13 +6,13 @@ spring:
   jpa:
     hibernate:
       ddl-auto: create-drop
-  main:
-    allow-bean-definition-overriding: false
 application:
   version: 0.1.0-SNAPSHOT
 security:
   direct-access-enabled: true
   audit-enabled: true
-  gateway-header-name: X-ZT-Gateway
-  gateway-header-value: zero-trust-rgw
-  trusted-gateway-ips: 127.0.0.1
+  gateway:
+    trust-mode: DOCKER_HOST_NAT
+    header-name: X-ZT-Gateway
+    header-value: zero-trust-rgw
+    trusted-upstream-observed-addresses: 127.0.0.1

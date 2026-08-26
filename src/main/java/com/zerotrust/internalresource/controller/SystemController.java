@@ -48,7 +48,7 @@ public class SystemController {
     @GetMapping("/network-info")
     public ApiResponse<?> networkInfo(HttpServletRequest request) {
         return ApiResponse.success(Map.of(
-                "clientIp", request.getRemoteAddr(),
+                "actualRemoteAddr", request.getRemoteAddr(),
                 "forwardedFor", header(request, "X-Forwarded-For"),
                 "forwardedProto", header(request, "X-Forwarded-Proto"),
                 "userAgent", header(request, "User-Agent"),
@@ -60,3 +60,4 @@ public class SystemController {
     private String trace(HttpServletRequest request) { return (String) request.getAttribute(RequestContextFilter.TRACE_ID_ATTRIBUTE); }
     private String header(HttpServletRequest request, String name) { String value = request.getHeader(name); return value == null ? "" : value; }
 }
+
