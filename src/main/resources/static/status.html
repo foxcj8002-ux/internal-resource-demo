@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>服务状态 - Internal Resource</title>
+  <link rel="stylesheet" href="/assets/web.css">
+</head>
+<body>
+  <main class="page">
+    <header class="topbar">
+      <a class="brand" href="/"><span class="brand-mark">◆</span><span>Internal Resource</span></a>
+      <nav class="nav"><a href="/">资源控制台</a><a class="active" href="/status.html">服务状态</a><a href="/help.html">使用帮助</a></nav>
+    </header>
+    <section class="hero"><div class="hero-label">Runtime overview</div><h1>服务运行状态</h1><p>查看资源服务健康状态、应用信息和访问环境。静态页面可直接打开，业务 API 仍遵循零信任网关策略。</p></section>
+    <section class="grid">
+      <article class="card"><h2>健康检查</h2><div class="item"><span class="item-label">服务状态</span><span id="health" class="badge">检查中</span></div><div class="item"><span class="item-label">检查地址</span><span class="item-value">/actuator/health</span></div><div class="actions"><button id="reload" class="button">重新检查</button></div></article>
+      <article class="card"><h2>应用信息</h2><div class="item"><span class="item-label">应用名称</span><span id="app-name" class="item-value">—</span></div><div class="item"><span class="item-label">版本</span><span id="version" class="item-value">—</span></div><div class="item"><span class="item-label">运行环境</span><span id="environment" class="item-value">—</span></div><div class="item"><span class="item-label">直接访问</span><span id="direct-access" class="item-value">—</span></div></article>
+      <article class="card wide"><h2>访问说明</h2><div id="message" class="message">正在读取服务信息……</div><div class="actions"><a class="button" href="/">打开资源控制台</a><a class="button secondary" href="/help.html">查看接口说明</a></div></article>
+    </section>
+  </main>
+  <script>
+    async function readJson(url){const response=await fetch(url);const body=await response.json();if(!response.ok)throw new Error(body.message||'请求失败');return body}
+    async function loadStatus(){const health=document.getElementById('health');try{const body=await readJson('/actuator/health');health.textContent=body.status||'UP';health.className='badge'}catch(error){health.textContent='不可用';health.className='badge error'}try{const body=await readJson('/api/system/info');const data=body.data||{};document.getElementById('app-name').textContent=data.applicationName||'—';document.getElementById('version').textContent=data.version||'—';document.getElementById('environment').textContent=data.environment||'—';document.getElementById('direct-access').textContent=data.directAccessEnabled?'已开启':'已关闭';document.getElementById('message').textContent='系统 API 可正常访问，资源控制台可以直接加载业务数据。'}catch(error){document.getElementById('message').textContent='健康页面可访问，但系统 API 当前要求通过零信任网关访问：'+error.message}}
+    document.getElementById('reload').addEventListener('click',loadStatus);loadStatus();
+  </script>
+</body>
+</html>

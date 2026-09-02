@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>使用帮助 - Internal Resource</title>
+  <link rel="stylesheet" href="/assets/web.css">
+</head>
+<body>
+  <main class="page">
+    <header class="topbar">
+      <a class="brand" href="/"><span class="brand-mark">◆</span><span>Internal Resource</span></a>
+      <nav class="nav"><a href="/">资源控制台</a><a href="/status.html">服务状态</a><a class="active" href="/help.html">使用帮助</a></nav>
+    </header>
+    <section class="hero"><div class="hero-label">Quick guide</div><h1>资源服务使用帮助</h1><p>本项目提供文件、设备和访问日志等内部资源 API，同时提供浏览器可直接访问的管理页面。</p></section>
+    <section class="grid">
+      <article class="card"><h2>快速开始</h2><div class="guide"><div class="guide-step"><span class="step-number">1</span><div><h3>启动资源服务</h3><p>启动 Spring Boot 应用后，默认访问地址为 <code>http://localhost:8080/</code>。</p></div></div><div class="guide-step"><span class="step-number">2</span><div><h3>打开控制台</h3><p>首页可以查看文件、设备和访问日志，并支持创建基础资源。</p></div></div><div class="guide-step"><span class="step-number">3</span><div><h3>通过网关访问</h3><p>当直接访问关闭时，业务 API 必须由 zero-trust-rgw 转发，静态 Web 页面仍可正常打开。</p></div></div></div></article>
+      <article class="card"><h2>页面入口</h2><div class="item"><span class="item-label">资源控制台</span><a class="item-value" href="/">/</a></div><div class="item"><span class="item-label">服务状态</span><a class="item-value" href="/status.html">/status.html</a></div><div class="item"><span class="item-label">使用帮助</span><span class="item-value">/help.html</span></div><div class="actions"><a class="button" href="/">进入控制台</a></div></article>
+      <article class="card wide"><h2>主要 API</h2><div style="overflow:auto"><table class="api-list"><thead><tr><th>方法</th><th>路径</th><th>用途</th></tr></thead><tbody><tr><td>GET / POST</td><td><code>/api/files</code></td><td>查询或创建文件资源</td></tr><tr><td>GET / POST</td><td><code>/api/devices</code></td><td>查询或创建设备资源</td></tr><tr><td>GET</td><td><code>/api/access-logs</code></td><td>查询访问审计日志</td></tr><tr><td>GET</td><td><code>/api/system/info</code></td><td>查询应用与安全配置</td></tr><tr><td>GET</td><td><code>/actuator/health</code></td><td>查询服务健康状态</td></tr></tbody></table></div></article>
+    </section>
+  </main>
+</body>
+</html>
